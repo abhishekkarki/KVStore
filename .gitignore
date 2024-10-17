@@ -1,4 +1,4 @@
-# Ignore configuration files
+# Ignore 
 main/config.h
 CMakeLists.txt
 .devcontainer/
