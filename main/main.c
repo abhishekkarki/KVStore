@@ -36,11 +36,11 @@
 
 #define SENSOR_TYPE DHT_TYPE_DHT11
 // DHT Sensor GPIO Pin
-#define DHT_GPIO_PIN CONFIG_DHT_GPIO_PIN
+//#define DHT_GPIO_PIN CONFIG_DHT_GPIO_PIN
 
 // Wi-Fi credentials
-#define WIFI_SSID CONFIG_WIFI_SSID
-#define WIFI_PASS CONFIG_WIFI_PASS
+//#define WIFI_SSID CONFIG_WIFI_SSID
+//#define WIFI_PASS CONFIG_WIFI_PASS
 
 // Function prototypes
 void data_collection_task(void *pvParameters);
