@@ -1,35 +1,56 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C5 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
+# _KV Store for ESP32_
 
-# _Sample project_
-
-(See the README.md file in the upper level 'examples' directory for more information about examples.)
-
-This is the simplest buildable example. The example is used by command `idf.py create-project`
-that copies the project to user specified path and set it's name. For more information follow the [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project)
+## Overview
+This project is an ESP32-based data logger that reads temperature (and optionally humidity) measurements from a DHT11 sensor at regular intervals. It stores the measurements in a buffer and non-volatile storage (NVS). The ESP32 runs an HTTP server that allows users to query measurements by timestamp via a web interface or HTTP requests. The device connects to a Wi-Fi network, synchronizes time using SNTP, and uses mDNS for easy access over the network.
 
 
 
-## How to use example
-We encourage the users to use the example as a template for the new projects.
-A recommended way is to follow the instructions on a [docs page](https://docs.espressif.com/projects/esp-idf/en/latest/api-guides/build-system.html#start-a-new-project).
+## Features
+•	DHT11 Sensor Integration: Reads temperature data every minute.
 
-## Example folder contents
+•	Data Buffering: Stores measurements in a buffer and writes to NVS when the buffer is 90% full.
 
-The project **sample_project** contains one source file in C language [main.c](main/main.c). The file is located in folder [main](main).
+•	HTTP Server: Provides an API and web interface to query measurements by timestamp.
 
-ESP-IDF projects are built using CMake. The project build configuration is contained in `CMakeLists.txt`
-files that provide set of directives and instructions describing the project's source files and targets
-(executable, library, or both). 
+•	Web Interface: User-friendly web page to input timestamps and display results.
 
-Below is short explanation of remaining files in the project folder.
+•	Wi-Fi Connectivity: Connects to a specified Wi-Fi network.
 
-```
-├── CMakeLists.txt
-├── main
-│   ├── CMakeLists.txt
-│   └── main.c
-└── README.md                  This is the file you are currently reading
-```
-Additionally, the sample project contains Makefile and component.mk files, used for the legacy Make based build system. 
-They are not used or needed when building with CMake and idf.py.
+•	SNTP Time Synchronization: Synchronizes time using NTP servers.
+
+•	mDNS Support: Access the device using a hostname instead of an IP address.
+
+•	Configuration Management: Uses menuconfig for storing sensitive data and configurations.
+
+## Hardware Requirements
+•	ESP32 Development Board
+
+•	DHT11 Temperature and Humidity Sensor
+
+•	Jumper Wires
+
+•	USB Cable (for programming and power)
+
+•	Wi-Fi Network
+
+## Software Requirements
+•	ESP-IDF: ESP32 development framework (v4.x or above recommended)
+
+•	Python 3.x: Required by ESP-IDF for build tools
+
+•	Serial Monitor: idf.py monitor or any serial terminal program
+
+## License
+This project is licensed under the MIT License.
+
+## Contributing
+Contributions are welcome! Please follow these steps:
+
+1.	Fork the repository.
+2.	Create a new branch: git checkout -b feature/your-feature-name.
+3.	Commit your changes: git commit -am 'Add new feature'.
+4.	Push to the branch: git push origin feature/your-feature-name.
+5.	Submit a pull request.
+
+## Contact
+For questions or support, please open an issue on the GitHub repository or contact the project maintainer at abhishek.karki@tum.de
