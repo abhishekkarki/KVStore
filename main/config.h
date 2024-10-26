@@ -2,10 +2,16 @@
 #define CONFIG_H
 
 // Wi-Fi credentials
-#define WIFI_SSID "TP-Link_BA88"
-#define WIFI_PASS "91037695"
+#define CONFIG_WIFI_SSID "TP-Link_BA88"
+#define CONFIG_WIFI_PASS "91037695"
 
 // DHT Sensor GPIO Pin
-#define DHT_GPIO_PIN GPIO_NUM_22 // Replace with your GPIO number
+#define CONFIG_DHT_GPIO_PIN GPIO_NUM_22 // Replace with your GPIO number
+
+// MQTT Data
+#define CONFIG_MQTT_BROKER_URI "mqtt://192.168.0.104:1883"
+#define CONFIG_MQTT_USERNAME "edge_device"
+#define CONFIG_MQTT_PASSWORD "pass101"
+
 
 #endif // CONFIG_H

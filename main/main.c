@@ -1,118 +1,263 @@
+// main.c
+
 #include <stdio.h>
-#include <stdlib.h>
-#include <inttypes.h> // For PRIu32 and PRIx32
-#include <time.h>
 #include <string.h>
-#include <stdbool.h>
-#include <ctype.h>    // For isspace()
+#include <time.h>
+#include <sys/time.h>
+#include <inttypes.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "driver/uart.h"          // For UART types and functions
 #include "esp_system.h"
 #include "esp_log.h"
-#include "esp_err.h"
+#include "esp_event.h"
+#include "esp_timer.h"
+#include "esp_sntp.h"
+#include "esp_wifi.h"
+#include "esp_netif.h"
 #include "nvs_flash.h"
-
-#include "driver/gpio.h"
-#include "dht.h"
-
-#include "nvs_utils.h"
-#include "buffer.h"
-#include "measurement.h"
 #include "config.h"
 
-// Wi-Fi and SNTP includes
-#include "esp_wifi.h"
-#include "esp_event.h"
-#include "esp_netif.h"
-#include "lwip/apps/sntp.h"
+#include "mqtt_client.h"
+#include "dht.h"
 
-// HTTP Server includes
-#include "esp_http_server.h"
+#include "buffer.h"
+#include "nvs_utils.h"
+#include "measurement.h"
 
-#define TAG "MAIN"
+static const char *TAG = "MAIN";
 
+// Wi-Fi Configuration
+#define WIFI_SSID CONFIG_WIFI_SSID
+#define WIFI_PASS CONFIG_WIFI_PASS
+#define MAXIMUM_RETRY 5
+
+// DHT Sensor Configuration
+#define DHT_GPIO_PIN CONFIG_DHT_GPIO_PIN 
 #define SENSOR_TYPE DHT_TYPE_DHT11
-// DHT Sensor GPIO Pin
-//#define DHT_GPIO_PIN CONFIG_DHT_GPIO_PIN
 
-// Wi-Fi credentials
-//#define WIFI_SSID CONFIG_WIFI_SSID
-//#define WIFI_PASS CONFIG_WIFI_PASS
+// MQTT Configuration
+#define MQTT_BROKER_URI CONFIG_MQTT_BROKER_URI
+#define MQTT_USERNAME CONFIG_MQTT_USERNAME
+#define MQTT_PASSWORD CONFIG_MQTT_PASSWORD
+
+// Threshold for when to send data from flash to edge device
+#define FLASH_USAGE_THRESHOLD_PERCENT 5 // Adjust as needed for testing
+
+esp_mqtt_client_handle_t mqtt_client = NULL;
+
+// Wi-Fi Event Group and Retry Counter
+static EventGroupHandle_t s_wifi_event_group;
+#define WIFI_CONNECTED_BIT BIT0
 
 // Function prototypes
-void data_collection_task(void *pvParameters);
-bool query_measurement(uint32_t timestamp, Measurement *result);
-void wifi_init(void);
-void initialize_sntp(void);
+void wifi_init_sta(void);
 void obtain_time(void);
-void start_webserver(void);
+void mqtt_app_start(void);
+void data_collection_task(void *pvParameters);
+void flash_monitoring_task(void *pvParameters);
+void publish_measurement_to_mqtt(Measurement *m);
+void send_flash_data_to_edge(void);
+void time_sync_notification_cb(struct timeval *tv);
+void buffer_init(void);
 
-// HTTP server handler
-esp_err_t query_handler(httpd_req_t *req) {
-    // Get the query string
-    char*  buf;
-    size_t buf_len;
+// MQTT Publish Function
+void publish_measurement_to_mqtt(Measurement *m) {
+    char topic[64];
+    char payload[128];
 
-    // Get URL query string length and allocate memory for length + 1, extra byte for null termination
-    buf_len = httpd_req_get_url_query_len(req) + 1;
-    if (buf_len > 1) {
-        buf = malloc(buf_len);
-        if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
-            ESP_LOGI(TAG, "Found URL query => %s", buf);
-            char param[32];
-            // Get the value of the "timestamp" parameter
-            if (httpd_query_key_value(buf, "timestamp", param, sizeof(param)) == ESP_OK) {
-                ESP_LOGI(TAG, "Found URL query parameter => timestamp=%s", param);
-                uint32_t timestamp = (uint32_t)strtoul(param, NULL, 10);
-                Measurement result;
+    // Define your MQTT topic
+    snprintf(topic, sizeof(topic), "esp32/temperature");
 
-                if (query_measurement(timestamp, &result)) {
-                    // Measurement found, send response
-                    char resp_str[128];
-                    snprintf(resp_str, sizeof(resp_str),
-                             "{\"timestamp\": %" PRIu32 ", \"temperature\": %.1f, \"dirty_bit\": %u}",
-                             result.timestamp, result.temperature, result.dirty_bit);
-                    httpd_resp_set_type(req, "application/json");
-                    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
-                } else {
-                    // Measurement not found
-                    httpd_resp_send_404(req);
-                }
+    // Prepare the payload
+    snprintf(payload, sizeof(payload),
+             "{\"timestamp\":%" PRIu32 ",\"temperature\":%.1f}",
+             m->timestamp, m->temperature);
+
+    // Publish to MQTT
+    int msg_id = esp_mqtt_client_publish(mqtt_client, topic, payload, 0, 1, 0);
+    ESP_LOGI(TAG, "Published measurement to MQTT topic %s, msg_id=%d", topic, msg_id);
+}
+
+// MQTT Event Handler
+void mqtt_event_handler(void *handler_args, esp_event_base_t event_base, int32_t event_id, void *event_data)
+{
+    esp_mqtt_event_handle_t event = event_data;
+    esp_mqtt_client_handle_t client = event->client;  // Obtain the client handle
+    int msg_id;
+
+    switch (event_id) {
+        case MQTT_EVENT_CONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
+            // Subscribe to a topic if needed
+            msg_id = esp_mqtt_client_subscribe(client, "esp32/temperature", 0);
+            ESP_LOGI(TAG, "Subscribed to esp32/temperature, msg_id=%d", msg_id);
+            break;
+        case MQTT_EVENT_DISCONNECTED:
+            ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
+            break;
+        case MQTT_EVENT_SUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_UNSUBSCRIBED:
+            ESP_LOGI(TAG, "MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_PUBLISHED:
+            ESP_LOGI(TAG, "MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+            break;
+        case MQTT_EVENT_DATA:
+            ESP_LOGI(TAG, "MQTT_EVENT_DATA");
+            printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
+            printf("DATA=%.*s\r\n", event->data_len, event->data);
+            break;
+        case MQTT_EVENT_ERROR:
+            ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
+            if (event->error_handle->error_type == MQTT_ERROR_TYPE_ESP_TLS) {
+                ESP_LOGE(TAG, "TLS Error: 0x%x", event->error_handle->esp_tls_last_esp_err);
+                ESP_LOGE(TAG, "TLS Stack Error: 0x%x", event->error_handle->esp_tls_stack_err);
+            } else if (event->error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+                ESP_LOGE(TAG, "Connection refused, reason code: 0x%x", event->error_handle->connect_return_code);
+            } else if (event->error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+                ESP_LOGE(TAG, "Transport error: errno=%d", event->error_handle->esp_transport_sock_errno);
             } else {
-                // Timestamp parameter not found
-                httpd_resp_send_404(req);
+                ESP_LOGE(TAG, "Unknown error type: 0x%x", event->error_handle->error_type);
             }
-        }
-        free(buf);
-    } else {
-        // No query string
-        httpd_resp_send_404(req);
-    }
-    return ESP_OK;
-}
-
-void start_webserver(void) {
-    httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-
-    // Start the httpd server
-    ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
-    httpd_handle_t server = NULL;
-    if (httpd_start(&server, &config) == ESP_OK) {
-        // Register URI handler
-        httpd_uri_t query_uri = {
-            .uri       = "/query",
-            .method    = HTTP_GET,
-            .handler   = query_handler,
-            .user_ctx  = NULL
-        };
-        httpd_register_uri_handler(server, &query_uri);
-    } else {
-        ESP_LOGE(TAG, "Error starting server!");
+            break;
+        default:
+            ESP_LOGI(TAG, "Other event id: %" PRIi32, event_id);
+            break;
     }
 }
+
+void mqtt_app_start(void) {
+    esp_mqtt_client_config_t mqtt_cfg = {
+        .broker.address.uri = MQTT_BROKER_URI,
+        .credentials = {
+            .username = MQTT_USERNAME,
+            .authentication = {
+                .password = MQTT_PASSWORD,
+            },
+        },
+        // If using TLS, include the certificate
+        //.cert_pem = (const char *)mqtt_broker_cert_pem_start,
+    };
+
+    mqtt_client = esp_mqtt_client_init(&mqtt_cfg);
+    esp_mqtt_client_register_event(mqtt_client, ESP_EVENT_ANY_ID, mqtt_event_handler, NULL);
+    esp_mqtt_client_start(mqtt_client);
+}
+
+// Wi-Fi Event Handler
+static void wifi_event_handler(void* arg, esp_event_base_t event_base,
+                               int32_t event_id, void* event_data)
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+        esp_wifi_connect();
+        ESP_LOGI(TAG, "Retrying to connect to the AP");
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
+        ESP_LOGI(TAG, "Connected to SSID:%s", WIFI_SSID);
+    }
+}
+
+// Wi-Fi Initialization
+void wifi_init_sta(void) {
+    s_wifi_event_group = xEventGroupCreate();
+
+    // Create default Wi-Fi station
+    esp_netif_create_default_wifi_sta();
+
+    // Initialize Wi-Fi with default configurations
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    // Register event handlers for Wi-Fi and IP events
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,
+                                                        &wifi_event_handler,
+                                                        NULL,
+                                                        NULL));
+
+    // Set Wi-Fi mode and configuration
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = WIFI_SSID,
+            .password = WIFI_PASS,
+            // Prevents connecting to AP with weaker security
+            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+            .pmf_cfg = {
+                .capable = true,
+                .required = false
+            },
+        },
+    };
+
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA)); // Station mode
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+
+    // Start Wi-Fi
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    // Wait for connection
+    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+            WIFI_CONNECTED_BIT,
+            pdFALSE,
+            pdFALSE,
+            portMAX_DELAY);
+
+    if (bits & WIFI_CONNECTED_BIT) {
+        ESP_LOGI(TAG, "Connected to SSID:%s", WIFI_SSID);
+    } else {
+        ESP_LOGE(TAG, "Failed to connect to SSID:%s", WIFI_SSID);
+    }
+}
+
+// SNTP Time Synchronization
+void obtain_time(void) {
+    ESP_LOGI(TAG, "Initializing SNTP");
+
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    esp_sntp_setservername(0, "pool.ntp.org");
+    esp_sntp_set_time_sync_notification_cb(time_sync_notification_cb);
+    esp_sntp_init();
+
+    // Wait for time to be set
+    time_t now = 0;
+    struct tm timeinfo = { 0 };
+    int retry = 0;
+    const int retry_count = 10;
+
+    while (timeinfo.tm_year < (2023 - 1900) && ++retry < retry_count) {
+        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        time(&now);
+        localtime_r(&now, &timeinfo);
+    }
+
+    if (retry >= retry_count) {
+        ESP_LOGE(TAG, "Failed to obtain time");
+    } else {
+        ESP_LOGI(TAG, "System time is set");
+    }
+}
+
+// Time Synchronization Notification Callback
+void time_sync_notification_cb(struct timeval *tv) {
+    ESP_LOGI(TAG, "Time synchronization event");
+}
+
+// main.c
 
 void data_collection_task(void *pvParameters) {
     while (1) {
@@ -120,164 +265,102 @@ void data_collection_task(void *pvParameters) {
         float humidity = 0.0;
 
         if (dht_read_float_data(SENSOR_TYPE, DHT_GPIO_PIN, &humidity, &temperature) == ESP_OK) {
-            // Create a new measurement
             Measurement m;
-            m.timestamp = (uint32_t)time(NULL); // Get current epoch time
+            m.timestamp = (uint32_t)time(NULL);
             m.temperature = temperature;
-            m.dirty_bit = DIRTY_BIT_BUFFER_ONLY; // Initial state: only in buffer
+            m.dirty_bit = DIRTY_BIT_BUFFER_ONLY;
 
             // Add to buffer
             buffer_add_measurement(&m);
-            ESP_LOGI(TAG, "Measurement added to buffer: Timestamp: %" PRIu32 ", Temperature: %.1f°C", m.timestamp, m.temperature);
 
-            // Check if buffer is 90% full
-            if (buffer_is_90_percent_full()) {
-                ESP_LOGI(TAG, "Buffer is 90%% full. Pushing half of the entries to flash.");
+            ESP_LOGI(TAG, "Measurement collected: Timestamp: %" PRIu32 ", Temperature: %.1f°C", m.timestamp, m.temperature);
+
+            // Check if buffer is at threshold
+            if (buffer_is_threshold_full()) {
+                ESP_LOGI(TAG, "Buffer is %d%% full. Pushing half of the entries to flash.", BUFFER_THRESHOLD_PERCENT);
                 buffer_push_to_flash();
             }
         } else {
             ESP_LOGE(TAG, "Could not read data from sensor");
         }
 
-        // Wait for 1 minute (60,000 milliseconds)
+        // Wait for 10 seconds
+        vTaskDelay(pdMS_TO_TICKS(10000));
+    }
+}
+
+void flash_monitoring_task(void *pvParameters) {
+    while (1) {
+        uint32_t flash_usage = get_flash_usage_percent();
+        //ESP_LOGI(TAG, "Flash usage: %u%%", flash_usage);
+        ESP_LOGI(TAG, "Flash usage: %" PRIu32 "%%", flash_usage);
+
+        if (flash_usage >= FLASH_USAGE_THRESHOLD_PERCENT) {
+            ESP_LOGI(TAG, "Flash usage threshold reached (%u%%). Sending data to edge device.", FLASH_USAGE_THRESHOLD_PERCENT);
+            send_flash_data_to_edge();
+
+            // Clear flash storage after sending
+            clear_flash_storage();
+        }
+
+        // Check every minute (adjust as needed)
         vTaskDelay(pdMS_TO_TICKS(60000));
     }
 }
 
-bool query_measurement(uint32_t timestamp, Measurement *result) {
-    // 1. Check buffer
-    if (buffer_find_measurement(timestamp, result)) {
-        ESP_LOGI(TAG, "Measurement found in buffer");
-        return true;
+void send_flash_data_to_edge() {
+    ESP_LOGI(TAG, "Sending data from flash to edge device over MQTT");
+
+    nvs_iterator_t it = NULL;
+    esp_err_t err = nvs_entry_find("nvs", "storage", NVS_TYPE_BLOB, &it);
+    while (err == ESP_OK && it != NULL) {
+        nvs_entry_info_t info;
+        nvs_entry_info(it, &info);
+
+        // Read the measurement
+        Measurement m;
+        uint32_t timestamp = strtoul(info.key, NULL, 16);
+        if (find_measurement_in_flash(timestamp, &m)) {
+            // Publish measurement over MQTT
+            publish_measurement_to_mqtt(&m);
+        } else {
+            ESP_LOGE(TAG, "Failed to read measurement from flash for key %s", info.key);
+        }
+
+        // Move to the next entry
+        err = nvs_entry_next(&it);
     }
-
-    // 2. Check flash
-    if (find_measurement_in_flash(timestamp, result)) {
-        ESP_LOGI(TAG, "Measurement found in flash");
-        // Bring back to buffer
-        buffer_add_measurement(result);
-        // No need to change dirty bit; it remains as DIRTY_BIT_IN_FLASH
-        return true;
-    }
-
-    // 3. Edge device interaction (not implemented)
-    ESP_LOGI(TAG, "Measurement not found locally");
-    return false;
-}
-
-// Wi-Fi event handler
-static void event_handler(void* arg, esp_event_base_t event_base,
-                          int32_t event_id, void* event_data)
-{
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        ESP_LOGI(TAG, "Disconnected from Wi-Fi, retrying...");
-        esp_wifi_connect();
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "Connected to Wi-Fi");
-        ESP_LOGI(TAG, "Got IP address: " IPSTR, IP2STR(&event->ip_info.ip));
-    }
-}
-
-void wifi_init(void) {
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    // Register event handler
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
-                                                        &event_handler,
-                                                        NULL,
-                                                        NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                        IP_EVENT_STA_GOT_IP,
-                                                        &event_handler,
-                                                        NULL,
-                                                        NULL));
-
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
-            /* Setting a password implies station will connect to all security modes including WEP/WPA.
-             * However these modes are deprecated and not advisable to be used. Incase your Access point
-             * doesn't support WPA2, these mode can be enabled by commenting below line */
-            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
-
-            .pmf_cfg = {
-                .capable = true,
-                .required = false
-            },
-        },
-    };
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK(esp_wifi_start());
-}
-
-void initialize_sntp(void) {
-    ESP_LOGI(TAG, "Initializing SNTP");
-
-    // Set the SNTP operating mode to polling
-    sntp_setoperatingmode(SNTP_OPMODE_POLL);
-
-    // Set the SNTP server
-    sntp_setservername(0, "pool.ntp.org");
-
-    // Initialize the SNTP service
-    sntp_init();
-}
-
-void obtain_time(void) {
-    // Initialize Wi-Fi
-    wifi_init();
-
-    // Initialize SNTP
-    initialize_sntp();
-
-    // Wait for time to be set
-    int retry = 0;
-    const int max_retries = 15;
-    time_t now = 0;
-    struct tm timeinfo = {0};
-
-    while (timeinfo.tm_year < (2016 - 1900) && ++retry < max_retries) {
-        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, max_retries);
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
-        time(&now);
-        localtime_r(&now, &timeinfo);
-    }
-
-    if (timeinfo.tm_year < (2016 - 1900)) {
-        ESP_LOGE(TAG, "Failed to get time over NTP.");
-    } else {
-        ESP_LOGI(TAG, "System time set to %s", asctime(&timeinfo));
-    }
+    nvs_release_iterator(it);
 }
 
 void app_main() {
-    // Initialize NVS
-    esp_err_t err = init_nvs();
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize NVS: %s", esp_err_to_name(err));
-        return;
-    }
+    // Initialize NVS (Non-Volatile Storage)
+    ESP_ERROR_CHECK(init_nvs());
+
+    // Initialize the TCP/IP stack
+    ESP_ERROR_CHECK(esp_netif_init());
+
+    // Create the default event loop
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    // Initialize Wi-Fi
+    wifi_init_sta();
+
+    // Wait for Wi-Fi to be connected
+    xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT, false, true, portMAX_DELAY);
+
+    // Synchronize time
+    obtain_time();
 
     // Initialize buffer
     buffer_init();
 
-    // Obtain current time via SNTP
-    obtain_time();
-
-    // Start the web server
-    start_webserver();
+    // Initialize MQTT
+    mqtt_app_start();
 
     // Start data collection task
     xTaskCreate(data_collection_task, "data_collection_task", 4096, NULL, 5, NULL);
+
+    // Start flash monitoring task
+    xTaskCreate(flash_monitoring_task, "flash_monitoring_task", 4096, NULL, 5, NULL);
 }

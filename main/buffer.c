@@ -1,16 +1,15 @@
 #include "buffer.h"
 #include "nvs_utils.h"
-#include <string.h>
-#include <stdio.h>
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "esp_log.h"
+
+static const char *TAG = "BUFFER";
 
 static Measurement buffer[BUFFER_SIZE];
-static int buffer_head = 0; // Index for adding new measurements
-static int buffer_tail = 0; // Index for removing measurements
-static int buffer_count = 0; // Number of measurements in the buffer
-
+static int buffer_head = 0;
+static int buffer_tail = 0;
+static int buffer_count = 0;
 static SemaphoreHandle_t buffer_mutex;
 
 void buffer_init() {
@@ -22,29 +21,25 @@ void buffer_init() {
 
 void buffer_add_measurement(Measurement *m) {
     xSemaphoreTake(buffer_mutex, portMAX_DELAY);
+
     buffer[buffer_head] = *m;
     buffer_head = (buffer_head + 1) % BUFFER_SIZE;
+
     if (buffer_count < BUFFER_SIZE) {
         buffer_count++;
     } else {
-        // Buffer is full; overwrite the oldest entry
+        // Overwrite oldest data
         buffer_tail = (buffer_tail + 1) % BUFFER_SIZE;
     }
+
     xSemaphoreGive(buffer_mutex);
 }
 
-bool buffer_is_full() {
+bool buffer_is_threshold_full() {
     xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-    bool full = buffer_count >= BUFFER_SIZE;
+    bool result = (buffer_count >= (BUFFER_SIZE * BUFFER_THRESHOLD_PERCENT / 100));
     xSemaphoreGive(buffer_mutex);
-    return full;
-}
-
-bool buffer_is_90_percent_full() {
-    xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-    bool full = buffer_count >= (BUFFER_SIZE * 90 / 100);
-    xSemaphoreGive(buffer_mutex);
-    return full;
+    return result;
 }
 
 void buffer_push_to_flash() {
@@ -56,43 +51,15 @@ void buffer_push_to_flash() {
         int index = (buffer_tail + i) % BUFFER_SIZE;
         Measurement *m = &buffer[index];
 
-        // Only push entries with dirty bit 0 (not in flash)
+        // Only process entries with dirty bit DIRTY_BIT_BUFFER_ONLY (0)
         if (m->dirty_bit == DIRTY_BIT_BUFFER_ONLY) {
             if (store_measurement_in_flash(m)) {
                 m->dirty_bit = DIRTY_BIT_IN_FLASH; // Mark as in flash
                 entries_pushed++;
             } else {
+                ESP_LOGE(TAG, "Failed to store measurement in flash");
                 // Handle storage error if needed
             }
-        }
-    }
-    xSemaphoreGive(buffer_mutex);
-}
-
-bool buffer_find_measurement(uint32_t timestamp, Measurement *result) {
-    bool found = false;
-    xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-    for (int i = 0; i < buffer_count; i++) {
-        int index = (buffer_tail + i) % BUFFER_SIZE;
-        Measurement *m = &buffer[index];
-        if (m->timestamp == timestamp) {
-            *result = *m;
-            found = true;
-            break;
-        }
-    }
-    xSemaphoreGive(buffer_mutex);
-    return found;
-}
-
-void buffer_update_dirty_bit(uint32_t timestamp, uint8_t dirty_bit) {
-    xSemaphoreTake(buffer_mutex, portMAX_DELAY);
-    for (int i = 0; i < buffer_count; i++) {
-        int index = (buffer_tail + i) % BUFFER_SIZE;
-        Measurement *m = &buffer[index];
-        if (m->timestamp == timestamp) {
-            m->dirty_bit = dirty_bit;
-            break;
         }
     }
     xSemaphoreGive(buffer_mutex);
