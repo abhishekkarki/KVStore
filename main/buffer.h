@@ -4,14 +4,12 @@
 #include "measurement.h"
 #include <stdbool.h>
 
-#define BUFFER_SIZE 500 // Adjust as needed
+#define BUFFER_SIZE 10 // Reduced buffer size for testing
+#define BUFFER_THRESHOLD_PERCENT 20 // Adjusted threshold for testing
 
-void buffer_init();
+void buffer_init(void);
 void buffer_add_measurement(Measurement *m);
-bool buffer_is_full();
-bool buffer_is_90_percent_full();
-void buffer_push_to_flash();
-bool buffer_find_measurement(uint32_t timestamp, Measurement *result);
-void buffer_update_dirty_bit(uint32_t timestamp, uint8_t dirty_bit);
+bool buffer_is_threshold_full(void);
+void buffer_push_to_flash(void);
 
 #endif // BUFFER_H
