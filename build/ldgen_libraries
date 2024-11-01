@@ -56,12 +56,13 @@
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/console/libconsole.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/http_parser/libhttp_parser.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp-tls/libesp-tls.a
+/Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/tcp_transport/libtcp_transport.a
+/Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp-mqtt/libesp-mqtt.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp_adc/libesp_adc.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp_driver_cam/libesp_driver_cam.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp_eth/libesp_eth.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp_gdbstub/libesp_gdbstub.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp_hid/libesp_hid.a
-/Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/tcp_transport/libtcp_transport.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp_http_client/libesp_http_client.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp_http_server/libesp_http_server.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/esp_https_ota/libesp_https_ota.a
@@ -77,6 +78,7 @@
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/mqtt/libmqtt.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/nvs_sec_provider/libnvs_sec_provider.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/perfmon/libperfmon.a
+/Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/protocol_examples_common/libprotocol_examples_common.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/spiffs/libspiffs.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/wifi_provisioning/libwifi_provisioning.a
 /Users/abhishek/Documents/thesis/key-value-store/build/esp-idf/dht/libdht.a

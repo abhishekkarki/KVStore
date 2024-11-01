@@ -56,12 +56,13 @@ $<TARGET_FILE:__idf_cmock>
 $<TARGET_FILE:__idf_console>
 $<TARGET_FILE:__idf_http_parser>
 $<TARGET_FILE:__idf_esp-tls>
+$<TARGET_FILE:__idf_tcp_transport>
+$<TARGET_FILE:__idf_esp-mqtt>
 $<TARGET_FILE:__idf_esp_adc>
 $<TARGET_FILE:__idf_esp_driver_cam>
 $<TARGET_FILE:__idf_esp_eth>
 $<TARGET_FILE:__idf_esp_gdbstub>
 $<TARGET_FILE:__idf_esp_hid>
-$<TARGET_FILE:__idf_tcp_transport>
 $<TARGET_FILE:__idf_esp_http_client>
 $<TARGET_FILE:__idf_esp_http_server>
 $<TARGET_FILE:__idf_esp_https_ota>
@@ -77,6 +78,7 @@ $<TARGET_FILE:__idf_json>
 $<TARGET_FILE:__idf_mqtt>
 $<TARGET_FILE:__idf_nvs_sec_provider>
 $<TARGET_FILE:__idf_perfmon>
+$<TARGET_FILE:__idf_protocol_examples_common>
 $<TARGET_FILE:__idf_spiffs>
 $<TARGET_FILE:__idf_wifi_provisioning>
 $<TARGET_FILE:__idf_dht>

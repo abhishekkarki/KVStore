@@ -1,18 +1,15 @@
 #ifndef NVS_UTILS_H
 #define NVS_UTILS_H
 
-#include <stdio.h>
-#include <string.h>
-#include <nvs_flash.h>
-#include <nvs.h>
-#include "measurement.h"
 #include <stdbool.h>
+#include <stdint.h>
+#include "esp_err.h"
+#include "measurement.h"
 
-extern const char *NVS_NAMESPACE;
-
-esp_err_t init_nvs();
+esp_err_t init_nvs(void);
 bool store_measurement_in_flash(Measurement *m);
 bool find_measurement_in_flash(uint32_t timestamp, Measurement *result);
-bool is_measurement_in_flash(uint32_t timestamp);
+void clear_flash_storage(void);
+uint32_t get_flash_usage_percent(void);
 
 #endif // NVS_UTILS_H

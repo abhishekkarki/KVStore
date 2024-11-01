@@ -450,6 +450,18 @@
             "managed_priv_reqs": [],
             "include_dirs": [ "include", "esp32/include" ]
         },
+        "esp-mqtt": {
+            "alias": "idf::esp-mqtt",
+            "target": "___idf_esp-mqtt",
+            "prefix": "idf",
+            "dir": "/Users/abhishek/esp/esp-idf/components/esp-mqtt",
+            "lib": "__idf_esp-mqtt",
+            "reqs": [ "esp_event", "tcp_transport" ],
+            "priv_reqs": [ "esp_timer", "http_parser", "esp_hw_support", "heap" ],
+            "managed_reqs": [],
+            "managed_priv_reqs": [],
+            "include_dirs": [ "/Users/abhishek/esp/esp-idf/components/esp-mqtt/include" ]
+        },
         "esp-tls": {
             "alias": "idf::esp-tls",
             "target": "___idf_esp-tls",
@@ -1349,6 +1361,18 @@
             "managed_reqs": [],
             "managed_priv_reqs": [],
             "include_dirs": [ "protobuf-c" ]
+        },
+        "protocol_examples_common": {
+            "alias": "idf::protocol_examples_common",
+            "target": "___idf_protocol_examples_common",
+            "prefix": "idf",
+            "dir": "/Users/abhishek/esp/esp-idf/components/protocol_examples_common",
+            "lib": "__idf_protocol_examples_common",
+            "reqs": [],
+            "priv_reqs": [ "esp_netif", "driver", "esp_wifi", "vfs", "console", "esp_eth" ],
+            "managed_reqs": [],
+            "managed_priv_reqs": [],
+            "include_dirs": [ "include" ]
         },
         "protocomm": {
             "alias": "idf::protocomm",
