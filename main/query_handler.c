@@ -29,13 +29,29 @@ void process_query_message(const char *message) {
         }
 
         if (cJSON_IsNumber(timestamp)) {
+            uint32_t ts = (uint32_t)timestamp->valuedouble;
             Measurement m;
-            if (find_measurement_in_buffer((uint32_t)timestamp->valuedouble, &m)) {
+            if (find_measurement_in_buffer(ts, &m)) {
+                // Send response
+                send_measurement_response(&m, resp_topic);
+            } else if (retrieve_measurement_from_flash(ts, &m)) {
+                // Bring it into the buffer
+                m.dirty_bit = DIRTY_BIT_SENT_TO_EDGE; // Update dirty_bit as needed
+                buffer_add_measurement(&m);
+
+                // Send response
+                send_measurement_response(&m, resp_topic);
+            } else if (retrieve_measurement_from_edge(ts, &m)) {
+                // Store in flash and buffer if desired
+                m.dirty_bit = DIRTY_BIT_SENT_TO_EDGE;
+                store_measurement_in_flash(&m);
+                buffer_add_measurement(&m);
+
                 // Send response
                 send_measurement_response(&m, resp_topic);
             } else {
-                ESP_LOGI(TAG, "Measurement not found in buffer for timestamp %" PRIu32, (uint32_t)timestamp->valuedouble);
-                // Optionally, send a message indicating data not found
+                ESP_LOGE(TAG, "Measurement not found for timestamp %" PRIu32, ts);
+                // Optionally, send an error response
             }
         } else {
             ESP_LOGE(TAG, "Invalid or missing 'timestamp' in query");

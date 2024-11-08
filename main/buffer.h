@@ -8,7 +8,7 @@
 #include "freertos/semphr.h"
 
 #define BUFFER_CAPACITY_MACRO 10
-#define BUFFER_THRESHOLD_PERCENT 20
+#define BUFFER_THRESHOLD_PERCENT 80
 
 extern Measurement buffer[];
 extern int buffer_head;

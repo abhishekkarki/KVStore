@@ -11,5 +11,7 @@ bool store_measurement_in_flash(Measurement *m);
 bool find_measurement_in_flash(uint32_t timestamp, Measurement *result);
 void clear_flash_storage(void);
 uint32_t get_flash_usage_percent(void);
+bool retrieve_measurement_from_flash(uint32_t timestamp, Measurement *m);
+bool retrieve_measurement_from_edge(uint32_t timestamp, Measurement *m); // Declaration only
 
 #endif // NVS_UTILS_H

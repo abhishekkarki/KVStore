@@ -26,6 +26,7 @@
 #include "nvs_utils.h"
 #include "measurement.h"
 #include "mqtt_utils.h"
+#include "timestamp_list.h"
 
 // New parts
 #include "query_handler.h"
@@ -50,7 +51,7 @@ static const char *TAG = "MAIN";
 #define DEVICE_MQTT_BROKER_URI CONFIG_DEVICE_MQTT_BROKER_URI
 
 // Threshold for when to send data from flash to edge device
-#define FLASH_USAGE_THRESHOLD_PERCENT 1 // Adjust as needed
+#define FLASH_USAGE_THRESHOLD_PERCENT 3 // Adjust as needed
 
 // Measurement Interval
 #define MEASUREMENT_INTERVAL_MS 5000  // Collect measurement every 5 seconds
@@ -118,9 +119,6 @@ void flash_monitoring_task(void *pvParameters) {
         if (flash_usage >= FLASH_USAGE_THRESHOLD_PERCENT) {
             ESP_LOGI(TAG, "Flash usage threshold reached (%u%%). Sending data to edge device.", FLASH_USAGE_THRESHOLD_PERCENT);
             send_flash_data_to_edge();
-
-            // Clear flash storage after sending
-            clear_flash_storage();
         }
 
         // Check every minute (adjust as needed)
@@ -132,49 +130,61 @@ void flash_monitoring_task(void *pvParameters) {
 void send_flash_data_to_edge(void) {
     ESP_LOGI(TAG, "Sending data from flash to edge device over MQTT");
 
-    nvs_iterator_t it = NULL;
-    // Specify the partition name "nvs"
-    esp_err_t err = nvs_entry_find("nvs", "storage", NVS_TYPE_ANY, &it);
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGW(TAG, "No entries found in NVS");
-        return;
-    } else if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to find NVS entries: %s", esp_err_to_name(err));
+    size_t entries_to_send = 10; // Adjust as needed
+    uint32_t timestamps[entries_to_send];
+    size_t actual_entries = 0;
+
+    // Get the first 'entries_to_send' timestamps from the list
+    get_timestamps_from_list(entries_to_send, timestamps, &actual_entries);
+
+    if (actual_entries == 0) {
+        ESP_LOGI(TAG, "No entries to send");
         return;
     }
 
-    while (it != NULL) {
-        nvs_entry_info_t info;
-        nvs_entry_info(it, &info);
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open NVS: %s", esp_err_to_name(err));
+        return;
+    }
 
-        // Use nvs_open_from_partition with the same partition name
-        nvs_handle_t handle;
-        err = nvs_open_from_partition("nvs", info.namespace_name, NVS_READONLY, &handle);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to open NVS handle: %s", esp_err_to_name(err));
-            break;
-        }
+    for (size_t i = 0; i < actual_entries; i++) {
+        char key[16];
+        snprintf(key, sizeof(key), "%" PRIu32, timestamps[i]);
 
-        // Read the measurement
+        // Retrieve the measurement
         size_t required_size = sizeof(Measurement);
         Measurement m;
-        err = nvs_get_blob(handle, info.key, &m, &required_size);
-        nvs_close(handle);
-
+        err = nvs_get_blob(handle, key, &m, &required_size);
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to get blob from NVS: %s", esp_err_to_name(err));
-            break;
+            ESP_LOGE(TAG, "Failed to get measurement for key %s: %s", key, esp_err_to_name(err));
+            continue;
         }
 
-        // Send the measurement over MQTT to the edge broker
+        // Send the measurement to the edge device
         publish_to_edge(&m);
 
-        // Move to next entry
-        err = nvs_entry_next(&it);
+        // Update dirty_bit to DIRTY_BIT_SENT_TO_EDGE
+        m.dirty_bit = DIRTY_BIT_SENT_TO_EDGE;
+        err = nvs_set_blob(handle, key, &m, sizeof(Measurement));
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to update measurement for key %s: %s", key, esp_err_to_name(err));
+            continue;
+        }
+
+        // Delete the entry from flash
+        err = nvs_erase_key(handle, key);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to erase key %s: %s", key, esp_err_to_name(err));
+        }
     }
 
-    // Release the iterator
-    nvs_release_iterator(it);
+    nvs_commit(handle);
+    nvs_close(handle);
+
+    // Remove the timestamps from the list
+    remove_timestamps_from_list(actual_entries);
 }
 
 // MQTT Event Handlers

@@ -2,6 +2,7 @@
 #include "nvs_utils.h"
 #include "esp_log.h"
 #include <string.h>
+#include "timestamp_list.h"
 
 static const char *TAG = "BUFFER";
 
@@ -70,8 +71,13 @@ void buffer_push_to_flash() {
 
         // Only process entries with dirty bit DIRTY_BIT_BUFFER_ONLY (0)
         if (m->dirty_bit == DIRTY_BIT_BUFFER_ONLY) {
+            // Update dirty bit to DIRTY_BIT_IN_FLASH
+            m->dirty_bit = DIRTY_BIT_IN_FLASH;
+
+            // Store measurement in flash
             if (store_measurement_in_flash(m)) {
-                m->dirty_bit = DIRTY_BIT_IN_FLASH; // Mark as in flash
+                // Append timestamp to FIFO list
+                append_timestamp_to_list(m->timestamp);
                 entries_pushed++;
             } else {
                 ESP_LOGE(TAG, "Failed to store measurement in flash");
