@@ -1,7 +1,7 @@
 # Ignore 
 main/config.h
 CMakeLists.txt
-.vscode
-build
-.devcontainer
-components
+/.vscode
+/build
+/.devcontainer
+/components
