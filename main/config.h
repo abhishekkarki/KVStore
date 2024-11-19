@@ -24,5 +24,9 @@
 #define CONFIG_DEVICE_MQTT_USERNAME ""
 #define CONFIG_DEVICE_MQTT_PASSWORD ""
 
+// Define MQTT topics for communication with the edge device
+//#define EDGE_REQUEST_TOPIC "edge/request"
+//#define ESP32_RESPONSE_TOPIC "esp32/response"
+
 
 #endif // CONFIG_H

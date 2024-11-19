@@ -4,6 +4,16 @@
 #include "nvs.h"
 #include <inttypes.h>
 
+#include "mqtt_utils.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "cJSON.h"
+#include "esp_timer.h"
+#include "esp_random.h"
+#include "esp_system.h"  // For esp_random()
+#include "mqtt_topics.h"
+
+
 static const char *TAG = "NVS_UTILS";
 
 esp_err_t init_nvs(void) {
@@ -161,13 +171,76 @@ bool retrieve_measurement_from_flash(uint32_t timestamp, Measurement *m) {
     return true;
 }
 
-bool retrieve_measurement_from_edge(uint32_t timestamp, Measurement *m) {
-    // Send MQTT request to edge device for the measurement
-    // This is a placeholder; implementation depends on your MQTT setup
-    // You might need to implement a synchronous or asynchronous request-response mechanism
+// Function to initialize the semaphore
+static void init_edge_response_semaphore() {
+    if (edge_response_semaphore == NULL) {
+        edge_response_semaphore = xSemaphoreCreateBinary();
+        if (edge_response_semaphore == NULL) {
+            ESP_LOGE(TAG, "Failed to create semaphore");
+        }
+    }
+}
 
-    // For now, we'll return false to indicate not implemented
-    //ESP_LOGI(TAG, "EDGE_RETRIEVE", "Retrieving measurement from edge is not implemented");
+bool retrieve_measurement_from_edge(uint32_t timestamp, Measurement *m) {
+    if (edge_mqtt_client == NULL) {
+        ESP_LOGE(TAG, "Edge MQTT client is not initialized");
+        return false;
+    }
+
+    init_edge_response_semaphore();
+    if (edge_response_semaphore == NULL) {
+        return false;
+    }
+
+    // Reset the response flag
+    edge_response_received = false;
+
+    // Generate a unique request ID
+    expected_request_id = esp_random();
+
+    // Construct the request JSON
+    cJSON *request_json = cJSON_CreateObject();
+    cJSON_AddStringToObject(request_json, "action", "get_measurement");
+    cJSON_AddNumberToObject(request_json, "timestamp", timestamp);
+    cJSON_AddNumberToObject(request_json, "request_id", expected_request_id);
+
+    char *request_payload = cJSON_PrintUnformatted(request_json);
+    cJSON_Delete(request_json);
+
+    if (request_payload == NULL) {
+        ESP_LOGE(TAG, "Failed to create request payload");
+        return false;
+    }
+
+    // Publish the request to the edge device
+    int msg_id = esp_mqtt_client_publish(edge_mqtt_client, EDGE_REQUEST_TOPIC,
+                                         request_payload, 0, 1, 0);
+
+    free(request_payload);
+
+    if (msg_id == -1) {
+        ESP_LOGE(TAG, "Failed to publish request to edge device");
+        return false;
+    }
+
+    ESP_LOGI(TAG, "Published measurement request to edge device, msg_id=%d", msg_id);
+
+    // Wait for the response with a timeout
+    if (xSemaphoreTake(edge_response_semaphore, pdMS_TO_TICKS(EDGE_REQUEST_TIMEOUT_MS)) == pdTRUE) {
+        if (edge_response_received) {
+            // Copy the received measurement to the output parameter
+            *m = edge_received_measurement;
+            return true;
+        } else {
+            ESP_LOGE(TAG, "Edge response received but flag not set");
+            return false;
+        }
+    } else {
+        ESP_LOGE(TAG, "Timeout waiting for response from edge device");
+        return false;
+    }
+
+    // Ensure that the function returns a value in all code paths
     return false;
 }
 

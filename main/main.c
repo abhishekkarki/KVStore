@@ -51,10 +51,10 @@ static const char *TAG = "MAIN";
 #define DEVICE_MQTT_BROKER_URI CONFIG_DEVICE_MQTT_BROKER_URI
 
 // Threshold for when to send data from flash to edge device
-#define FLASH_USAGE_THRESHOLD_PERCENT 3 // Adjust as needed
+#define FLASH_USAGE_THRESHOLD_PERCENT 18 // Adjust as needed (this is in terms of percentage)
 
 // Measurement Interval
-#define MEASUREMENT_INTERVAL_MS 5000  // Collect measurement every 5 seconds
+#define MEASUREMENT_INTERVAL_MS 60000  // Collect measurement every x seconds (i.e. 5000 = 5 sec)
 
 // Global MQTT client handles
 esp_mqtt_client_handle_t edge_mqtt_client = NULL;    // For edge MQTT broker
@@ -237,6 +237,7 @@ void device_mqtt_event_handler(void *handler_args, esp_event_base_t event_base, 
 
 // MQTT Initialization
 void mqtt_app_start(void) {
+    /*
     // Edge MQTT Client Configuration (Requires Authentication)
     esp_mqtt_client_config_t edge_mqtt_cfg = {
         .broker.address.uri = EDGE_MQTT_BROKER_URI,
@@ -251,6 +252,7 @@ void mqtt_app_start(void) {
     edge_mqtt_client = esp_mqtt_client_init(&edge_mqtt_cfg);
     esp_mqtt_client_register_event(edge_mqtt_client, ESP_EVENT_ANY_ID, edge_mqtt_event_handler, NULL);
     esp_mqtt_client_start(edge_mqtt_client);
+    */
 
     // Device MQTT Client Configuration (No Authentication)
     esp_mqtt_client_config_t device_mqtt_cfg = {
@@ -403,7 +405,9 @@ void app_main(void) {
     obtain_time();
 
     // Initialize MQTT clients
-    mqtt_app_start();
+    mqtt_app_start();       // Start the device MQTT client
+    edge_mqtt_start();     // Start the edge MQTT client
+
 
     // Start measurement collection task
     xTaskCreate(measurement_collection_task, "measurement_collection_task", 4096, NULL, 5, NULL);

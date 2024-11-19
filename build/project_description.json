@@ -1,7 +1,7 @@
 {
     "version":            "1.1",
     "project_name":       "nvs_example",
-    "project_version":    "ae6ddd9-dirty",
+    "project_version":    "6a97d09-dirty",
     "project_path":       "/Users/abhishek/Documents/thesis/key-value-store",
     "idf_path":           "/Users/abhishek/esp/esp-idf",
     "build_dir":          "/Users/abhishek/Documents/thesis/key-value-store/build",
