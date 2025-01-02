@@ -10,20 +10,20 @@
 
 #include "config.h"
 #include "mqtt_topics.h"
-
+// ─────────────────────────────────────────────────────────────────────────────
 static const char *TAG = "MQTT_UTILS";
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Extern MQTT clients
 extern esp_mqtt_client_handle_t edge_mqtt_client;
 extern esp_mqtt_client_handle_t device_mqtt_client;
-
+// ─────────────────────────────────────────────────────────────────────────────
 
 SemaphoreHandle_t edge_response_semaphore = NULL;
 Measurement edge_received_measurement;
 bool edge_response_received = false;
 uint32_t expected_request_id = 0;
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Publish Measurement to Edge Broker
 void publish_to_edge(Measurement *m) {
     char payload[128];
@@ -39,7 +39,7 @@ void publish_to_edge(Measurement *m) {
     }
 }
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // Send Measurement Response to Device Broker
 void send_measurement_response(Measurement *m, const char *response_topic) {
     char payload[128];
@@ -55,6 +55,7 @@ void send_measurement_response(Measurement *m, const char *response_topic) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Function to process the response from the edge device
 void process_edge_response(const char *data) {
     ESP_LOGI(TAG, "Processing edge response: %s", data);
@@ -103,7 +104,7 @@ void process_edge_response(const char *data) {
     xSemaphoreGive(edge_response_semaphore);
 }
 
-
+// ─────────────────────────────────────────────────────────────────────────────
 // MQTT event handler for the edge MQTT client
 static void edge_mqtt_event_handler_cb(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
     esp_mqtt_event_handle_t event = event_data;
@@ -137,6 +138,7 @@ static void edge_mqtt_event_handler_cb(void *handler_args, esp_event_base_t base
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Function to initialize and start the edge MQTT client
 void edge_mqtt_start(void) {
     // Edge MQTT Client Configuration

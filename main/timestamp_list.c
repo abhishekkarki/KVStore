@@ -3,11 +3,12 @@
 #include "esp_log.h"
 #include <string.h>
 #include <stdlib.h>
-
+// ─────────────────────────────────────────────────────────────────────────────
 static const char *TAG = "TIMESTAMP_LIST";
 #define TIMESTAMP_LIST_KEY "timestamp_list"
 #define NAMESPACE "storage"
 
+// ─────────────────────────────────────────────────────────────────────────────
 void append_timestamp_to_list(uint32_t timestamp) {
     nvs_handle_t handle;
     esp_err_t err = nvs_open(NAMESPACE, NVS_READWRITE, &handle);
@@ -49,13 +50,14 @@ void append_timestamp_to_list(uint32_t timestamp) {
         ESP_LOGE(TAG, "Error setting timestamp list: %s", esp_err_to_name(err));
     } else {
         nvs_commit(handle);
-        ESP_LOGI(TAG, "Appended timestamp %" PRIu32 " to list", timestamp);
+        ESP_LOGI(TAG, "Appended timestamp %" PRIu32 " to FIFO list", timestamp);
     }
 
     free(timestamp_list);
     nvs_close(handle);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 void remove_timestamps_from_list(size_t count) {
     nvs_handle_t handle;
     esp_err_t err = nvs_open(NAMESPACE, NVS_READWRITE, &handle);
@@ -104,13 +106,14 @@ void remove_timestamps_from_list(size_t count) {
         ESP_LOGE(TAG, "Error updating timestamp list: %s", esp_err_to_name(err));
     } else {
         nvs_commit(handle);
-        ESP_LOGI(TAG, "Removed %" PRIu32 " timestamps from list", (uint32_t)count);
+        ESP_LOGI(TAG, "Removed %" PRIu32 " timestamps from FIFO list", (uint32_t)count);
     }
 
     free(timestamp_list);
     nvs_close(handle);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 void get_timestamps_from_list(size_t count, uint32_t *timestamps, size_t *out_count) {
     nvs_handle_t handle;
     esp_err_t err = nvs_open(NAMESPACE, NVS_READONLY, &handle);
@@ -153,6 +156,7 @@ void get_timestamps_from_list(size_t count, uint32_t *timestamps, size_t *out_co
 
     memcpy(timestamps, timestamp_list, count * sizeof(uint32_t));
     *out_count = count;
+    ESP_LOGI(TAG, "Retrieved %" PRIu32 " timestamps from FIFO list", (uint32_t)*out_count);
 
     free(timestamp_list);
     nvs_close(handle);

@@ -32,21 +32,25 @@
 #include "query_handler.h"
 #include "cJSON.h"
 
+// ─────────────────────────────────────────────────────────────────────────────
 static const char *TAG = "MAIN";
 
 // Wi-Fi Configuration
 #define WIFI_SSID CONFIG_WIFI_SSID
 #define WIFI_PASS CONFIG_WIFI_PASS
 
+// ─────────────────────────────────────────────────────────────────────────────
 // DHT Sensor Configuration
 #define DHT_GPIO_PIN CONFIG_DHT_GPIO_PIN
 #define SENSOR_TYPE DHT_TYPE_DHT11
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Edge MQTT Configuration (Requires Authentication)
 #define EDGE_MQTT_BROKER_URI CONFIG_EDGE_MQTT_BROKER_URI
 #define EDGE_MQTT_USERNAME CONFIG_EDGE_MQTT_USERNAME
 #define EDGE_MQTT_PASSWORD CONFIG_EDGE_MQTT_PASSWORD
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Device MQTT Configuration (No Authentication)
 #define DEVICE_MQTT_BROKER_URI CONFIG_DEVICE_MQTT_BROKER_URI
 
@@ -54,12 +58,14 @@ static const char *TAG = "MAIN";
 #define FLASH_USAGE_THRESHOLD_PERCENT 18 // Adjust as needed (this is in terms of percentage)
 
 // Measurement Interval
-#define MEASUREMENT_INTERVAL_MS 60000  // Collect measurement every x seconds (i.e. 5000 = 5 sec)
+#define MEASUREMENT_INTERVAL_MS 20000  // Collect measurement every x seconds (i.e. 5000 = 5 sec)
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Global MQTT client handles
 esp_mqtt_client_handle_t edge_mqtt_client = NULL;    // For edge MQTT broker
 esp_mqtt_client_handle_t device_mqtt_client = NULL;  // For device MQTT broker
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Function prototypes
 void wifi_init_sta(void);
 void obtain_time(void);
@@ -70,14 +76,17 @@ void send_flash_data_to_edge(void);
 void time_sync_notification_cb(struct timeval *tv);
 void buffer_init(void);
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Wi-Fi Event Group
 static EventGroupHandle_t s_wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
 
+// ─────────────────────────────────────────────────────────────────────────────
 // MQTT Event Handlers
 void edge_mqtt_event_handler(void *handler_args, esp_event_base_t event_base, int32_t event_id, void *event_data);
 void device_mqtt_event_handler(void *handler_args, esp_event_base_t event_base, int32_t event_id, void *event_data);
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Measurement Collection Task
 void measurement_collection_task(void *pvParameters) {
     while (1) {
@@ -110,6 +119,7 @@ void measurement_collection_task(void *pvParameters) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Flash Monitoring Task
 void flash_monitoring_task(void *pvParameters) {
     while (1) {
@@ -126,6 +136,7 @@ void flash_monitoring_task(void *pvParameters) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // send flash data to edge
 void send_flash_data_to_edge(void) {
     ESP_LOGI(TAG, "Sending data from flash to edge device over MQTT");
@@ -187,6 +198,7 @@ void send_flash_data_to_edge(void) {
     remove_timestamps_from_list(actual_entries);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // MQTT Event Handlers
 void edge_mqtt_event_handler(void *handler_args, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     // Handle events related to the edge MQTT client
@@ -203,6 +215,7 @@ void edge_mqtt_event_handler(void *handler_args, esp_event_base_t event_base, in
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 void device_mqtt_event_handler(void *handler_args, esp_event_base_t event_base, int32_t event_id, void *event_data) {
     // Handle events related to the device MQTT client
     esp_mqtt_event_handle_t event = event_data;
@@ -235,6 +248,7 @@ void device_mqtt_event_handler(void *handler_args, esp_event_base_t event_base, 
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // MQTT Initialization
 void mqtt_app_start(void) {
     /*
@@ -270,6 +284,7 @@ void mqtt_app_start(void) {
     esp_mqtt_client_start(device_mqtt_client);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Wi-Fi Event Handler
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data) {
@@ -287,6 +302,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Wi-Fi Initialization
 void wifi_init_sta(void) {
     s_wifi_event_group = xEventGroupCreate();
@@ -344,6 +360,7 @@ void wifi_init_sta(void) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // SNTP Time Synchronization
 void obtain_time(void) {
     ESP_LOGI(TAG, "Initializing SNTP");
@@ -373,11 +390,13 @@ void obtain_time(void) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Time Synchronization Notification Callback
 void time_sync_notification_cb(struct timeval *tv) {
     ESP_LOGI(TAG, "Time synchronization event");
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 void app_main(void) {
     // Initialize NVS
     esp_err_t err = init_nvs();
@@ -415,3 +434,4 @@ void app_main(void) {
     // Start flash monitoring task
     xTaskCreate(flash_monitoring_task, "flash_monitoring_task", 4096, NULL, 5, NULL);
 }
+// ─────────────────────────────────────────────────────────────────────────────
