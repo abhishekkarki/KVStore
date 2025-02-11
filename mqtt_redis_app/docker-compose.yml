@@ -1,0 +1,62 @@
+services:
+  app:
+    build: .
+    depends_on:
+      - influxdb
+      - mosquitto
+    environment:
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_TOPIC=esp32/temperature
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=my-token
+      - INFLUXDB_ORG=my-org
+      - INFLUXDB_BUCKET=my-bucket
+    networks:
+      - mqtt_influx_network
+
+  influxdb:
+    image: influxdb:latest
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-storage:/var/lib/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=my-org
+      - DOCKER_INFLUXDB_INIT_BUCKET=my-bucket
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-token
+    networks:
+      - mqtt_influx_network
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin  # Change this to a secure password
+    depends_on:
+      - influxdb
+    networks:
+      - mqtt_influx_network
+
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - /etc/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - /etc/mosquitto/passwd:/mosquitto/config/passwd
+      - /etc/mosquitto/conf.d:/mosquitto/config/conf.d
+    networks:
+      - mqtt_influx_network
+
+volumes:
+  influxdb-storage:
+
+networks:
+  mqtt_influx_network:
+    driver: bridge
