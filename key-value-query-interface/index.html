@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Command Interface</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script> <!-- MQTT.js library -->
+    <script src="js/app.js" defer></script>
+</head>
+<body>
+    <div class="terminal-container">
+        <h1 class="terminal-title">MQTT Command Interface</h1>
+
+        <!-- Publish Command Input -->
+        <div class="command-section">
+            <label for="publishCommand">Publisher Command</label>
+            <div class="command-input-wrapper">
+                <span class="prompt-symbol">$</span>
+                <input type="text" id="publishCommand" class="command-input" placeholder='mosquitto_pub -h localhost -t "topic/test" -m "hello"'>
+                <button onclick="executePublish()" class="command-button">Send</button>
+            </div>
+        </div>
+
+        <!-- Subscribe Command Input -->
+        <div class="command-section">
+            <label for="subscribeCommand">Subscriber Command</label>
+            <div class="command-input-wrapper">
+                <span class="prompt-symbol">$</span>
+                <input type="text" id="subscribeCommand" class="command-input" placeholder='mosquitto_sub -h localhost -t "topic/test"'>
+                <button onclick="executeSubscribe()" class="command-button">Subscribe</button>
+            </div>
+        </div>
+
+        <!-- Area to Display Responses -->
+        <div class="response-section">
+            <h3>Received Messages</h3>
+            <div id="responseArea" class="response-area"></div>
+        </div>
+    </div>
+</body>
+</html>
