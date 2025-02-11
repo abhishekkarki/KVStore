@@ -1,0 +1,142 @@
+/* General Body Styling */
+body {
+    background-color: #000;
+    color: #0a0;
+    font-family: 'Courier New', Courier, monospace;
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 20px 50px; /* Add padding from the edges */
+    margin: 0;
+    height: 100vh;
+}
+
+/* Terminal Container */
+.terminal-container {
+    color: #0a0;
+    width: 700px; /* Widen the container */
+}
+
+/* Adjust the terminal title to be higher on the page */
+.terminal-title {
+    color: #0a0;
+    text-align: center;
+    font-size: 24px;
+    margin-bottom: 40px;
+    overflow: hidden;
+    white-space: nowrap;
+    border-right: 4px solid #0a0;
+    animation: typing 3s steps(30, end) forwards, blink-caret 0.75s step-end infinite;
+}
+
+/* Typing Animation */
+@keyframes typing {
+    from { width: 0; }
+    to { width: 100%; }
+}
+
+@keyframes blink-caret {
+    from, to { border-color: transparent; }
+    50% { border-color: #0a0; }
+}
+
+/* Command Section */
+.command-section {
+    margin-bottom: 50px;
+}
+
+label {
+    display: block;
+    margin-bottom: 12px;
+    font-size: 18px;
+    color: #0a0;
+}
+
+/* Command Input Wrapper */
+.command-input-wrapper {
+    width: 150%;
+    display: flex;
+    align-items: center;
+    border: 0px solid #0a0;
+    padding: 10px;
+    border-radius: 5px;
+    background-color: rgba(0, 0, 0, 0.5); /* Slightly transparent background */
+}
+
+.prompt-symbol {
+    font-size: 22px;
+    margin-right: 5px;
+    color: #0a0;
+    background-color: transparent; /* Transparent background inside the input */
+    font-family: 'Courier New', Courier, monospace;
+    height: 100%;
+    line-height: 2.5;
+}
+
+.command-input {
+    flex-grow: 15; /* Make the input area take up remaining space */
+    padding: 10px;
+    font-size: 18px;
+    color: #0a0;
+    background-color: rgba(0, 0, 0, 0.5); 
+    border: none;
+    outline: none;
+    font-family: 'Courier New', Courier, monospace;
+    box-shadow: inset 0 0 5px rgba(0, 255, 0, 0.7);
+    margin-right: 10px; /* Add spacing between input and button */
+}
+
+.command-button {
+    padding: 8px 15px;
+    font-size: 16px;
+    color: #0a0;
+    background-color: rgba(0, 0, 0, 0.5); /* Slightly transparent background */
+    border: 2px solid #0a0;
+    cursor: pointer;
+    transition: all 0.3s;
+    border-radius: 5px; /* Rounded button */
+}
+
+.command-button:hover {
+    background-color: #0a0;
+    color: #000;
+}
+
+/* Response Section */
+.response-section h3 {
+    font-size: 20px;
+    color: #0a0;
+    margin-bottom: 10px;
+}
+
+.response-area {
+    width: 100%;
+    height: 300px;
+    /*background-color: #000;*/
+    background-color: rgba(0, 0, 0, 0.5); /* Slightly transparent background */
+    color: #0a0;
+    border: 2px solid #0a0;
+    padding: 10px;
+    overflow-y: auto;
+    font-size: 16px;
+    font-family: 'Courier New', Courier, monospace;
+    box-shadow: inset 0 0 5px rgba(0, 255, 0, 0.7);
+    border-radius: 5px;
+}
+
+/* Loading Dots Animation */
+@keyframes loading-dots {
+    0%, 20% { content: ''; }
+    40% { content: '.'; }
+    60% { content: '..'; }
+    80%, 100% { content: '...'; }
+}
+
+.loading-dots::after {
+    content: '';
+    display: inline-block;
+    animation: loading-dots 1s steps(5, end) infinite;
+    color: #0a0;
+    font-size: 18px;
+    margin-left: 5px;
+}

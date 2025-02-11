@@ -1,0 +1,138 @@
+// js/app.js
+
+// MQTT client variable
+let client;
+let isSubscribed = false;
+
+// Improved command parsing function
+function parseCommand(commandStr) {
+    const regex = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
+    const args = [];
+    let match;
+    while ((match = regex.exec(commandStr)) !== null) {
+        if (match[1]) {
+            // Double-quoted string
+            args.push(match[1]);
+        } else if (match[2]) {
+            // Single-quoted string
+            args.push(match[2]);
+        } else {
+            // Unquoted word
+            args.push(match[0]);
+        }
+    }
+    return args;
+}
+
+// Function to execute publish command
+function executePublish() {
+    const commandInput = document.getElementById('publishCommand').value;
+    const args = parseCommand(commandInput);
+
+    // Expected command format:
+    // mosquitto_pub -h <host> -t "<topic>" -m "<message>"
+    if (args[0] !== 'mosquitto_pub') {
+        alert('Invalid publish command. Please start with mosquitto_pub.');
+        return;
+    }
+
+    // Parse arguments
+    let host = 'localhost';
+    let topic = '';
+    let message = '';
+    for (let i = 1; i < args.length; i++) {
+        if (args[i] === '-h') {
+            host = args[++i];
+        } else if (args[i] === '-t') {
+            topic = args[++i];
+        } else if (args[i] === '-m') {
+            message = args[++i];
+        }
+    }
+
+    // Connect to MQTT broker if not already connected
+    if (!client || client.options.hostname !== host) {
+        client = connectClient(host);
+    }
+
+    // Publish the message
+    client.publish(topic, message);
+    appendResponse(`Published to ${topic}: ${message}`);
+}
+
+// Function to execute subscribe command
+function executeSubscribe() {
+    const commandInput = document.getElementById('subscribeCommand').value;
+    const args = parseCommand(commandInput);
+
+    // Expected command format:
+    // mosquitto_sub -h <host> -t "<topic>"
+    if (args[0] !== 'mosquitto_sub') {
+        alert('Invalid subscribe command. Please start with mosquitto_sub.');
+        return;
+    }
+
+    // Parse arguments
+    let host = 'localhost';
+    let topic = '';
+    for (let i = 1; i < args.length; i++) {
+        if (args[i] === '-h') {
+            host = args[++i];
+        } else if (args[i] === '-t') {
+            topic = args[++i];
+        }
+    }
+
+    // Connect to MQTT broker if not already connected
+    if (!client || client.options.hostname !== host) {
+        client = connectClient(host);
+    }
+
+    // Subscribe to the topic
+    client.subscribe(topic, function (err) {
+        if (!err) {
+            appendResponse(`Subscribed to ${topic}`);
+            isSubscribed = true;
+        } else {
+            appendResponse(`Subscription error: ${err.message}`);
+        }
+    });
+}
+
+// Function to connect to the MQTT broker
+function connectClient(host) {
+    // Options for the MQTT client
+    const options = {
+        hostname: host,
+        port: 9001, // WebSocket port for MQTT over WebSockets
+        path: '/mqtt', // Path used in Mosquitto WebSockets configuration
+        protocol: 'ws', // Use 'wss' if using SSL/TLS
+    };
+
+    const client = mqtt.connect(options);
+
+    client.on('connect', function () {
+        appendResponse(`Connected to MQTT broker at ${host}`);
+    });
+
+    client.on('message', function (topic, message) {
+        // message is a Buffer
+        appendResponse(`Received message on ${topic}: ${message.toString()}`);
+    });
+
+    client.on('error', function (error) {
+        appendResponse(`Connection error: ${error.message}`);
+    });
+
+    return client;
+}
+
+// Function to append responses to the response area
+function appendResponse(message) {
+    const responseArea = document.getElementById('responseArea');
+    const messageElement = document.createElement('div');
+    messageElement.textContent = message;
+    responseArea.appendChild(messageElement);
+    // Auto-scroll to the bottom
+    responseArea.scrollTop = responseArea.scrollHeight;
+}
