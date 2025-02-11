@@ -1,5 +1,3 @@
-// query_handler.c
-
 #include "query_handler.h"
 #include "mqtt_utils.h"
 #include "buffer.h"
